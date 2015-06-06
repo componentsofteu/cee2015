@@ -1,0 +1,133 @@
+heat_template_version: 2014-10-16
+
+description: This template presents the use-case of the "allowed_address_pairs" port parameter. It configures 2 VMs + a "service" IP. The service IP is a private IP (from the tenant network's IP range), which is allowed to be exists on either the first or the second VM  (not filtered out by the security group ruleset). VMs can run keepalived or similar to make this IP be available on one of the VMs.   
+
+      
+parameters:
+  image:
+    type: string
+    label: Image ID
+    default: cirros
+    description: Image to be used for compute instance
+  flavor:
+    type: string
+    label: Instance Type
+    default: m1.tiny
+    description: Type of instance (flavor) to be used
+  private_net_cidr:
+    type: string
+    label: The private net address range
+  virtual_private_ip:
+    type: string
+    label: The IP shared between the machines
+  public_net_id:
+    type: string
+
+resources:
+  
+  net:
+    type: OS::Neutron::Net
+    properties:
+      name: virt_net 
+        
+  subnet:
+     type: OS::Neutron::Subnet
+     properties:
+       cidr: {get_param: private_net_cidr}     
+       network_id: {get_resource: net}
+       name: virt_subnet
+
+  router:
+    type: OS::Neutron::Router
+    properties:
+      external_gateway_info:
+        network: { get_param: public_net_id }
+      name: virt_router
+
+  router_interface:
+    type: OS::Neutron::RouterInterface
+    properties:
+      router_id: { get_resource: router }
+      subnet_id: { get_resource: subnet }
+
+  
+  extra_port:
+   type: OS::Neutron::Port
+   properties:
+    network_id: { get_resource :  net  }
+    fixed_ips:
+      - ip_address: { get_param: virtual_private_ip }
+  
+  
+  server1_port:
+   type: OS::Neutron::Port
+   properties:
+    network_id: { get_resource: net   }
+    allowed_address_pairs:
+      - ip_address: { get_param: virtual_private_ip }
+    fixed_ips:
+      - subnet_id: { get_resource: subnet  }
+  
+  server2_port:
+   type: OS::Neutron::Port
+   properties:
+    network_id: { get_resource: net   }
+    allowed_address_pairs:
+      - ip_address: { get_param: virtual_private_ip }
+    fixed_ips:
+      - subnet_id: { get_resource: subnet   }
+
+  extra_floating_ip:
+   type: OS::Neutron::FloatingIP
+   properties:
+    floating_network_id: { get_param: public_net_id }
+    port_id: { get_resource: extra_port }
+  
+  server1_fip:
+   type: OS::Neutron::FloatingIP
+   properties:
+    floating_network_id: { get_param: public_net_id }
+    port_id: { get_resource: server1_port }
+  
+  server2_fip:
+   type: OS::Neutron::FloatingIP
+   properties:
+    floating_network_id: { get_param: public_net_id }
+    port_id: { get_resource: server2_port }
+
+
+
+  server1:
+    type: OS::Nova::Server
+    properties:
+      name: server1
+      image: { get_param: image }
+      flavor: { get_param: flavor }
+      networks: [ {port: {get_resource: server1_port} } ]	
+  
+  server2:
+    type: OS::Nova::Server
+    properties:
+      name: server2
+      image: { get_param: image }
+      flavor: { get_param: flavor }
+      networks: [ {port: {get_resource: server2_port} } ]	
+
+
+
+
+
+
+outputs:
+    server1_fip:
+        description: The floating IP for server1
+        value: {get_attr: [ server1_fip, floating_ip_address ]}
+    server2_fip:
+        description: The floating IP for server2
+        value: {get_attr: [ server2_fip, floating_ip_address ]}
+    extra_fip:
+        description: The floating IP for the virtual port
+        value: {get_attr: [ extra_floating_ip, floating_ip_address ]}
+
+
+

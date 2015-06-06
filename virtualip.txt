@@ -1,0 +1,53 @@
+[root@controller1 ~(keystone_admin)]# neutron net-list 
++--------------------------------------+----------+-------------------------------------------------------+
+| id                                   | name     | subnets                                               |
++--------------------------------------+----------+-------------------------------------------------------+
+| 7b56db03-16fd-4290-81d4-e736d3960885 | ext      | e3f9f4aa-3401-49df-a2eb-41d633798160 192.168.100.0/24 |
+| a83ffaf2-be36-4421-9ea9-efbe1dede3f8 | int_gre1 | 57ea6993-ceea-4f17-a4af-1ae3db93dbbc 10.30.30.0/24    |
+
+$> heat stack-create  -f virtualip.yaml -e virtualip.env vip
+[root@controller1 ~(keystone_admin)]# heat stack-list 
++--------------------------------------+------------+-----------------+----------------------+
+| id                                   | stack_name | stack_status    | creation_time        |
++--------------------------------------+------------+-----------------+----------------------+
+| 6f32954c-8c58-403c-95b5-60ec89fafa43 | vip        | CREATE_COMPLETE | 2015-05-19T15:50:59Z |
++--------------------------------------+------------+-----------------+----------------------+
+#### log into server1
+
+
+# ssh root@192.168.100.107
+@server1 # ip a s eth0
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast qlen 1000
+    link/ether fa:16:3e:b5:d9:cb brd ff:ff:ff:ff:ff:ff
+    inet 10.30.30.193/24 brd 10.30.30.255 scope global eth0
+    inet6 fe80::f816:3eff:feb5:d9cb/64 scope link 
+       valid_lft forever preferred_lft forever
+@server1 # ip addr add 10.30.30.201/25 dev eth0 
+
+
+### log into server2 
+
+# ssh root@192.168.100.106
+
+
+### start pinging the extra_ip
+[root@controller1 ~(keystone_admin)]# ping 192.168.100.105
+PING 192.168.100.105 (192.168.100.105) 56(84) bytes of data.
+64 bytes from 192.168.100.105: icmp_seq=1 ttl=63 time=1.78 ms
+64 bytes from 192.168.100.105: icmp_seq=2 ttl=63 time=1.03 ms
+64 bytes from 192.168.100.105: icmp_seq=3 ttl=63 time=1.10 ms
+
+### move the private IP 
+@server1 # ip addr del 10.30.30.201/25 dev eth0 
+@server2 # ip addr add 10.30.30.201/25 dev eth0 
+
+64 bytes from 192.168.100.105: icmp_seq=7 ttl=63 time=0.984 ms
+64 bytes from 192.168.100.105: icmp_seq=8 ttl=63 time=0.926 ms
+64 bytes from 192.168.100.105: icmp_seq=9 ttl=63 time=1.04 ms
+
+64 bytes from 192.168.100.105: icmp_seq=37 ttl=63 time=2.80 ms
+64 bytes from 192.168.100.105: icmp_seq=38 ttl=63 time=1.08 ms
+
+
+
+
